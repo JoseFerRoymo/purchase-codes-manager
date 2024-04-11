@@ -25,6 +25,7 @@
   <p class='verify-code unshow'>El código promocional se ha actualizado correctamente.</p>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
   const form = document.querySelector(".form-verify");
   const nonce = "<?= $nonce ?>";
@@ -55,13 +56,25 @@
     return data;
   };
   
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const code = document.querySelector('.form-verify-code').value;
     const invoice = document.querySelector('.form-verify-invoice').value;
-    
-    updatePurchase(code, invoice);
+
+    const {value: accept} = await Swal.fire({
+      html: `<div class='confirm-container'>
+      <p class='title'>¿Quieres continuar con los siguientes datos?</p>
+      <p class='text'>${invoice} - ${code}</p>
+      </div>`,
+      icon: 'question',
+      confirmButtonText: 'Continuar',
+      confirmButtonColor: '#05438F'
+    });
+
+    if(accept){
+      updatePurchase(code, invoice);
+    }
   });
 </script>
 
