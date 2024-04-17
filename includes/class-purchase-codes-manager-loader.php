@@ -150,31 +150,65 @@ class Purchase_Codes_Manager_Loader {
 					$response['location'] = $req['location'];
 					$response['shop'] = $req['shop'];
 					
-					if(!$req['medium'] || $req['medium'] != 'cpc'){
+					if(!$req['medium'] || $req['medium'] != '1'){
 						$res = new WP_REST_Response(['message' => 'Unauthorized']);
 						$res->set_status(401);
 						return ['req' => $res];
 					}else{
-						$code = generate_random_code();
-						$datetime = date('Y-m-d H:i:s');
 						$table = $wpdb->prefix . 'purchases';
+						
+						$name = $req['name'];
+						$email = $req['email'];
+						$phone = $req['phone'];
+						$location = $req['location'];
+						$shop = $req['shop'];
+						$draw_code = generate_random_code();
+						$date_created = date('Y-m-d H:i:s');
+						$date_redeemed = '';
+						$purchase_invoice = '';
+
+
 						$wpdb->insert(
 							$table,
 							[
-								'name' => $req['name'],
-								'email' => $req['email'],
-								'phone' => $req['phone'],
-								'location' => $req['location'],
-								'shop' => $req['shop'],
-								'date_created' => $datetime,
-								'draw_code' => $code
+								'name' => $name,
+								'email' => $email,
+								'phone' => $phone,
+								'location' => $location,
+								'shop' => $shop,
+								'date_created' => $date_created,
+								'draw_code' => $draw_code
 							]
 						);
 
+						//POST al excel de make
+						$params = [
+							'name' => $name,
+							'email' => $email,
+							'phone' => $phone,
+							'location' => $location,
+							'shop' => $shop,
+							'date_created' => $date_created,
+							'date_redeemed' => $date_redeemed,
+							'purchase_invoice' => $purchase_invoice,
+							'draw_code' => $draw_code
+						];
+						$url = 'https://hook.eu1.make.com/2q1mvv2v2vjh6befgwdhxyn49d4rwfn4';
+
+						$ch = curl_init($url);
+						curl_setopt($ch, CURLOPT_POST, true);
+						curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+						curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+
+						curl_exec($ch);
+						curl_close($ch);
+						
+						//Respuesta del post correcta
 						$res = new WP_REST_Response($response);
 						$res->set_status(201);
 
-						send_mail($req['email'], $req['name'], $code, $req['shop']);
+						//Envia el email con el codigo
+						send_mail($email, $name, $draw_code, $shop);
 
 						return ['req' => $res];
 					}
@@ -221,6 +255,11 @@ class Purchase_Codes_Manager_Loader {
 						$res->set_status(203);
 
 						return ['req' => $res];
+					}elseif(count($result) === 0){
+						$res = new WP_REST_Response(['message' => 'La factura ya esta asociada a un codigo']);
+						$res->set_status(404);
+
+						return ['req' => $res];
 					}else{
 						$invoice = $req['purchase_invoice'];
 
@@ -229,6 +268,27 @@ class Purchase_Codes_Manager_Loader {
 
 						$result[0]->purchase_invoice = $invoice;
 						$result[0]->date_redeemed = $datetime;
+
+						$params = [
+							'name' => $result[0]->name,
+							'email' => $result[0]->email,
+							'phone' => $result[0]->phone,
+							'location' => $result[0]->location,
+							'shop' => $result[0]->shop,
+							'date_created' => $result[0]->date_created,
+							'date_redeemed' => $result[0]->date_redeemed,
+							'purchase_invoice' => $result[0]->purchase_invoice,
+							'draw_code' => $result[0]->draw_code
+						];
+						$url = 'https://hook.eu1.make.com/2q1mvv2v2vjh6befgwdhxyn49d4rwfn4';
+
+						$ch = curl_init($url);
+						curl_setopt($ch, CURLOPT_POST, true);
+						curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+						curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+
+						curl_exec($ch);
+						curl_close($ch);
 
 						$res = new WP_REST_Response($result);
 						$res->set_status(201);
@@ -245,8 +305,8 @@ class Purchase_Codes_Manager_Loader {
 
 function generate_random_code(){
 	global $wpdb;
-	$characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHYJKLMNOPQRSTUVWXYZ';
-	$numbers = '0123456789';
+	$characters = 'ABCDEFGHYJKLMNOPQRSTUVWXYZ';
+	$numbers = '123456789';
 	$table = $wpdb->prefix . 'purchases';
 
 	$code = '';
